@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thẻ Đàn Hồi</title>
+    <style>
+        /* CSS - Phần tạo kiểu */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            overflow: hidden;
+            /* Ngăn cuộn trang khi kéo thẻ ra ngoài */
+            display: flex;
+            justify-content: center;
+            padding-top: 50px;
+        }
+
+        #card-container {
+            position: relative;
+            width: 200px;
+            height: 300px;
+            /* Vị trí neo của dây, đặt ở chính giữa trên cùng */
+            transform: translateX(-50%);
+            position: absolute;
+            left: 50%;
+            top: 0;
+        }
+
+        #lanyard {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            overflow: visible;
+            /* Cho phép vẽ đường thẳng ra ngoài khung */
+            pointer-events: none;
+            /* SVG sẽ không cản trở sự kiện chuột */
+        }
+
+        #student-card {
+            position: absolute;
+            width: 200px;
+            height: 320px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            z-index: 2;
+            cursor: grab;
+            /* Thay đổi con trỏ chuột khi di vào */
+            user-select: none;
+            /* Ngăn chọn văn bản khi kéo */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+        }
+
+        #student-card:active {
+            cursor: grabbing;
+            /* Thay đổi con trỏ chuột khi đang kéo */
+        }
+
+        .card-hole {
+            width: 40px;
+            height: 15px;
+            background-color: #f0f2f5;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background-color: #ccc;
+            margin-bottom: 15px;
+            border: 3px solid #007bff;
+            object-fit: cover;
+        }
+
+        .card-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 10px 0 5px;
+        }
+
+        .card-id,
+        .card-major {
+            font-size: 0.9em;
+            color: #555;
+            margin: 2px 0;
+        }
+
+        .barcode {
+            width: 80%;
+            height: 40px;
+            background-image: repeating-linear-gradient(to right,
+                    black, black 2px,
+                    white 2px, white 4px);
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="card-container">
+        <svg id="lanyard">
+            <line x1="100" y1="0" x2="100" y2="20" stroke="black" stroke-width="3" />
+        </svg>
+        <div id="student-card">
+            <div class="card-hole"></div>
+            <img src="https://i.pravatar.cc/100" alt="Avatar" class="avatar">
+            <h2 class="card-name">Nguyễn Văn A</h2>
+            <p class="card-id">MSSV: 20251234</p>
+            <p class="card-major">Ngành: Công nghệ thông tin</p>
+            <div class="barcode"></div>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript - Phần xử lý logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const card = document.getElementById('student-card');
+            const lanyardLine = document.querySelector('#lanyard line');
+            const container = document.getElementById('card-container');
+
+            // --- Các biến vật lý ---
+            let isDragging = false;
+
+            // Vị trí neo của sợi dây (phần đầu dây cố định ở trên cùng)
+            const visualAnchorX = container.offsetWidth / 2;
+            const visualAnchorY = 0;
+
+            // VỊ TRÍ NGHỈ: Đây là vị trí cân bằng mà thẻ sẽ luôn tìm cách quay về.
+            // Thay đổi giá trị Y ở đây để thẻ treo cao hay thấp.
+            const restX = container.offsetWidth / 2;
+            const restY = 150; // <--- THAY ĐỔI Ở ĐÂY (ví dụ: 150px)
+
+            // Vị trí ban đầu của thẻ được đặt bằng vị trí nghỉ
+            let posX = restX;
+            let posY = restY;
+
+            // Vận tốc
+            let velX = 0;
+            let velY = 0;
+
+            // Các hằng số vật lý (có thể giữ nguyên)
+            const springConstant = 0.03;
+            const damping = 0.92;
+            const mass = 5;
+
+            // Sự kiện khi nhấn chuột xuống thẻ
+            card.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                card.style.transition = 'none';
+            });
+
+            // Sự kiện khi thả chuột ra
+            window.addEventListener('mouseup', () => {
+                isDragging = false;
+                animate();
+            });
+
+            // Sự kiện khi di chuyển chuột
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const rect = container.getBoundingClientRect();
+                posX = e.clientX - rect.left;
+                posY = e.clientY - rect.top;
+
+                updateCardPosition();
+            });
+
+            function updateCardPosition() {
+                // Cập nhật vị trí CSS của thẻ
+                card.style.left = `${posX - card.offsetWidth / 2}px`;
+                card.style.top = `${posY - 20}px`;
+
+                // Cập nhật sợi dây: dây vẫn nối từ ĐIỂM NEO CỐ ĐỊNH ở trên cùng
+                lanyardLine.setAttribute('x1', visualAnchorX);
+                lanyardLine.setAttribute('y1', visualAnchorY);
+                lanyardLine.setAttribute('x2', posX);
+                lanyardLine.setAttribute('y2', posY);
+            }
+
+            function animate() {
+                if (isDragging) return;
+
+                // Tính toán lực kéo dựa trên khoảng cách tới VỊ TRÍ NGHỈ
+                const dx = posX - restX; // <--- THAY ĐỔI Ở ĐÂY
+                const dy = posY - restY; // <--- THAY ĐỔI Ở ĐÂY
+
+                const forceX = -springConstant * dx;
+                const forceY = -springConstant * dy;
+
+                const accelX = forceX / mass;
+                const accelY = forceY / mass;
+
+                velX += accelX;
+                velY += accelY;
+
+                velX *= damping;
+                velY *= damping;
+
+                posX += velX;
+                posY += velY;
+
+                updateCardPosition();
+
+                if (Math.abs(velX) < 0.1 && Math.abs(velY) < 0.1 && Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+                    return;
+                }
+
+                requestAnimationFrame(animate);
+            }
+
+            // Khởi tạo vị trí ban đầu
+            updateCardPosition();
+        });
+    </script>
+
+</body>
+
+</html>
